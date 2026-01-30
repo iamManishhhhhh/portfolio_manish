@@ -533,41 +533,37 @@
                             </a>
                         </div>
                     </div>
-                </div>
-                <div class="contact-form-wrapper">
-                    <form class="contact-form" 
-                          id="contactForm"
-                          action="https://formspree.io/f/mwvbnaze"
-                          method="POST">
-                        
-                        <!-- OPTIONAL BUT RECOMMENDED -->
-                        <input type="hidden" name="_subject" value="New message from my Portfolio 🚀">
-                        <input type="hidden" name="_redirect" value="https://web4manishhhhhh.vercel.app/">
+                <form
+                  action="https://formspree.io/f/mwvbnaze"
+                  method="POST"
+                  class="contact-form"
+                  id="contactForm"
+                >
+                  <div class="form-group">
+                    <label for="name">Your Name</label>
+                    <input type="text" id="name" name="name" required>
+                  </div>
 
-                        <div class="form-group">
-                          <label for="name">Your Name</label>
-                          <input type="text" id="name" name="name" required>
-                        </div>
+                  <div class="form-group">
+                    <label for="email">Your Email</label>
+                    <input type="email" id="email" name="email" required>
+                  </div>
 
-                       <div class="form-group">
-                          <label for="email">Your Email</label>
-                          <input type="email" id="email" name="email" required>
-                       </div>
+                  <div class="form-group">
+                     <label for="subject">Subject</label>
+                     <input type="text" id="subject" name="subject" required>
+                  </div>
 
-                       <div class="form-group">
-                          <label for="subject">Subject</label>
-                          <input type="text" id="subject" name="subject" required>
-                       </div>
+                  <div class="form-group">
+                     <label for="message">Message</label>
+                     <textarea id="message" name="message" rows="5" required></textarea>
+                  </div>
 
-                       <div class="form-group">
-                          <label for="message">Message</label>
-                          <textarea id="message" name="message" rows="5" required></textarea>
-                       </div>
-
-                      <button type="submit" class="btn btn-primary">
-                          <span>Send Message</span>
-                          <i class="fas fa-paper-plane"></i>
-                      </button>
+                  <button type="submit" class="btn btn-primary">
+                     <span>Send Message</span>
+                     <i class="fas fa-paper-plane"></i>
+                  </button>
+                </form>
                 </div>
             </div>
         </div>
