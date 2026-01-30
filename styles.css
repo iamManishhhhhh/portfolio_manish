@@ -1071,16 +1071,23 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Contact Form */
 .contact-form-wrapper {
-    background-color: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 40px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 40px;
+
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .contact-form {
-    display: flex;
-    flex-direction: column;
-    gap: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+
+  width: 100%;
+  max-width: 480px;
 }
 
 .form-group {
