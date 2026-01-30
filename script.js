@@ -108,43 +108,66 @@ document.querySelectorAll('.section').forEach(section => {
 // ===================================
 // Contact Form Handling
 // ===================================
-document.addEventListener("DOMContentLoaded", () => {
+const contactForm = document.getElementById('contactForm');
 
-  // Contact Form Handling
-  const contactForm = document.getElementById("contactForm");
-
-  if (!contactForm) return;
-
-  contactForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // ✅ redirect band
-
-    const formData = new FormData(contactForm);
-
-    try {
-      const response = await fetch(contactForm.action, {
-        method: "POST",
-        body: formData,
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const success = document.createElement("div");
-        success.className = "form-success-message";
-        success.innerText = "✅ Message sent successfully!";
-        contactForm.appendChild(success);
-
-        contactForm.reset();
-        setTimeout(() => success.remove(), 4000);
-      } else {
-        alert("❌ Something went wrong. Try again.");
-      }
-    } catch (error) {
-      alert("❌ Network error. Try later.");
+contactForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    // Get form values
+    const formData = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        subject: document.getElementById('subject').value,
+        message: document.getElementById('message').value
+    };
+    
+    // In a real application, you would send this data to a backend service
+    // For now, we'll just show a success message
+    
+    // Create success message
+    const successMessage = document.createElement('div');
+    successMessage.className = 'form-success-message';
+    successMessage.innerHTML = `
+        <div style="
+            background-color: rgba(212, 165, 116, 0.1);
+            border: 2px solid var(--accent-primary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+            color: var(--accent-primary);
+        ">
+            <i class="fas fa-check-circle" style="font-size: 32px; margin-bottom: 10px;"></i>
+            <p style="margin: 0; font-weight: 500;">Thank you for your message!</p>
+            <p style="margin: 5px 0 0 0; font-size: 14px; color: var(--text-secondary);">
+                This is a demo form. In production, your message would be sent.
+            </p>
+        </div>
+    `;
+    
+    // Remove any existing success message
+    const existingMessage = document.querySelector('.form-success-message');
+    if (existingMessage) {
+        existingMessage.remove();
     }
-  });
-
+    
+    // Add success message
+    contactForm.appendChild(successMessage);
+    
+    // Reset form
+    contactForm.reset();
+    
+    // Remove success message after 5 seconds
+    setTimeout(() => {
+        successMessage.style.opacity = '0';
+        successMessage.style.transition = 'opacity 0.5s ease-out';
+        setTimeout(() => {
+            successMessage.remove();
+        }, 500);
+    }, 5000);
+    
+    // Log form data (for development purposes)
+    console.log('Form submitted with data:', formData);
 });
 
 // ===================================
@@ -230,6 +253,13 @@ function typeEffect(element, text, speed = 100) {
     
     type();
 }
+
+// Uncomment to enable typing effect on hero subtitle
+// window.addEventListener('load', () => {
+//     const subtitle = document.querySelector('.hero-subtitle');
+//     const originalText = subtitle.textContent;
+//     typeEffect(subtitle, originalText, 80);
+// });
 
 // ===================================
 // Scroll Progress Indicator
