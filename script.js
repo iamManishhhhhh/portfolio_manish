@@ -281,34 +281,6 @@ function createCursorEffect() {
 // Uncomment to enable custom cursor (works best on desktop)
 // createCursorEffect();
 
-// Contact form handlling
-const contactForm = document.getElementById("contactForm");
-
-contactForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const formData = new FormData(contactForm);
-
-  try {
-    const response = await fetch("https://formspree.io/f/mwvbnaze", {
-      method: "POST",
-      body: formData,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (response.ok) {
-      showSuccessMessage("Message sent successfully 🚀");
-      contactForm.reset();
-    } else {
-      showSuccessMessage("Something went wrong ❌ Try again", true);
-    }
-  } catch (error) {
-    showSuccessMessage("Network error ❌", true);
-  }
-});
-
 function showSuccessMessage(text, isError = false) {
   let msg = document.querySelector(".form-success-message");
   if (msg) msg.remove();
