@@ -108,42 +108,43 @@ document.querySelectorAll('.section').forEach(section => {
 // ===================================
 // Contact Form Handling
 // ===================================
-const contactForm = document.getElementById("contactForm");
+document.addEventListener("DOMContentLoaded", () => {
 
-contactForm.addEventListener("submit", async (e) => {
-  e.preventDefault(); // 🚫 redirect band
+  // Contact Form Handling
+  const contactForm = document.getElementById("contactForm");
 
-  const formData = new FormData(contactForm);
+  if (!contactForm) return;
 
-  try {
-    const response = await fetch(contactForm.action, {
-      method: "POST",
-      body: formData,
-      headers: {
-        Accept: "application/json",
-      },
-    });
+  contactForm.addEventListener("submit", async (e) => {
+    e.preventDefault(); // ✅ redirect band
 
-    if (response.ok) {
-      // ✅ success message
-      const success = document.createElement("div");
-      success.className = "form-success-message";
-      success.innerText = "✅ Message sent successfully!";
-      contactForm.appendChild(success);
+    const formData = new FormData(contactForm);
 
-      contactForm.reset();
+    try {
+      const response = await fetch(contactForm.action, {
+        method: "POST",
+        body: formData,
+        headers: {
+          Accept: "application/json",
+        },
+      });
 
-      setTimeout(() => success.remove(), 4000);
-    } else {
-      alert("❌ Something went wrong. Try again.");
+      if (response.ok) {
+        const success = document.createElement("div");
+        success.className = "form-success-message";
+        success.innerText = "✅ Message sent successfully!";
+        contactForm.appendChild(success);
+
+        contactForm.reset();
+        setTimeout(() => success.remove(), 4000);
+      } else {
+        alert("❌ Something went wrong. Try again.");
+      }
+    } catch (error) {
+      alert("❌ Network error. Try later.");
     }
-  } catch (error) {
-    alert("❌ Network error. Try later.");
-  }
-});
-    
-    // Log form data (for development purposes)
-    console.log('Form submitted with data:', formData);
+  });
+
 });
 
 // ===================================
