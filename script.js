@@ -281,6 +281,55 @@ function createCursorEffect() {
 // Uncomment to enable custom cursor (works best on desktop)
 // createCursorEffect();
 
+// Contact form handlling
+const contactForm = document.getElementById("contactForm");
+
+contactForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const formData = new FormData(contactForm);
+
+  try {
+    const response = await fetch("https://formspree.io/f/mwvbnaze", {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (response.ok) {
+      showSuccessMessage("Message sent successfully 🚀");
+      contactForm.reset();
+    } else {
+      showSuccessMessage("Something went wrong ❌ Try again", true);
+    }
+  } catch (error) {
+    showSuccessMessage("Network error ❌", true);
+  }
+});
+
+function showSuccessMessage(text, isError = false) {
+  let msg = document.querySelector(".form-success-message");
+  if (msg) msg.remove();
+
+  msg = document.createElement("div");
+  msg.className = "form-success-message";
+  msg.style.marginTop = "20px";
+  msg.style.padding = "16px";
+  msg.style.borderRadius = "12px";
+  msg.style.textAlign = "center";
+  msg.style.fontWeight = "500";
+  msg.style.color = isError ? "#ff6b6b" : "#d4af7a";
+  msg.style.border = `2px solid ${isError ? "#ff6b6b" : "#d4af7a"}`;
+  msg.style.background = "rgba(255,255,255,0.03)";
+  msg.innerText = text;
+
+  contactForm.appendChild(msg);
+
+  setTimeout(() => msg.remove(), 5000);
+}
+
 // ===================================
 // Lazy Loading Images (for future use)
 // ===================================
