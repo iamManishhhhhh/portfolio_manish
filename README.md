@@ -64,13 +64,6 @@ portfolio/
 
 ---
 
-## 📄 Resume
-
-📥 My resume is available directly on the website:  
-👉 https://portfolio-manish-self.vercel.app/
-
----
-
 ## 📬 Contact & Socials
 
 - 📧 Email: **mainlymanishhhhhh@gmail.com**
