@@ -102,4 +102,4 @@ It motivates me to build and learn more!
 ---
 
 © 2025 **Manish Kumar**  
-Built with ❤️, patience, and lots of learning.
+Built with ❤️ and lots of learning.
