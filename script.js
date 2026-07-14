@@ -231,13 +231,6 @@ function typeEffect(element, text, speed = 100) {
     type();
 }
 
-// Uncomment to enable typing effect on hero subtitle
-// window.addEventListener('load', () => {
-//     const subtitle = document.querySelector('.hero-subtitle');
-//     const originalText = subtitle.textContent;
-//     typeEffect(subtitle, originalText, 80);
-// });
-
 // ===================================
 // Scroll Progress Indicator
 // ===================================
