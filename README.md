@@ -9,7 +9,7 @@
 
 ## 👋 About Me
 
-I am **Manish Kumar**, a B.Tech Computer Science & Engineering student specializing in **Artificial Intelligence & Data Science** at **Amity University, Ranchi**.  
+I am **Manish Kumar**, a B.Tech Computer Science & Engineering student at **Amity University, Ranchi**.  
 I’m passionate about technology, problem-solving, and building real-world solutions through code.
 
 This portfolio is a living project and will grow as I add:
