@@ -58,10 +58,6 @@ portfolio/
 
 ---
 
-> A modern personal portfolio designed for recruiters and collaborators.
-
----
-
 ## 📬 Contact & Socials
 
 - 📧 Email: **mainlymanishhhhhh@gmail.com**
