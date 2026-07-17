@@ -60,8 +60,6 @@ portfolio/
 
 > A modern personal portfolio designed for recruiters and collaborators.
 
-(You can add screenshots here later)
-
 ---
 
 ## 📬 Contact & Socials
