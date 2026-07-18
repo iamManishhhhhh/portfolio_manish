@@ -91,7 +91,7 @@ Feel free to open an issue or reach out.
 ## ⭐ Support
 
 If you like this portfolio, consider giving the repository a ⭐  
-It motivates me to build and learn more!
+It motivates me to build and learn more!!
 
 ---
 
