@@ -7,7 +7,7 @@
 
 ---
 
-## 👋 Who am I??
+## 👋 Who am I?
 
 I am **Manish Kumar**, a B.Tech Computer Science Engineering student at **Amity University, Ranchi**.  
 I’m passionate about technology, problem-solving, and building real-world solutions through code.
