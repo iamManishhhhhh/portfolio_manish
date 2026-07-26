@@ -46,7 +46,7 @@ This portfolio is a living project and will grow as I add:
 
 ---
 
-## 📁 Project Structure
+## 📁 Project Workflow
 portfolio/
 ├── index.html
 ├── styles.css
