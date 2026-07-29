@@ -21,7 +21,7 @@ This portfolio is a living project and will grow as I add:
 
 ## ✨ Features
 
-- Modern & responsive UI (mobile + desktop friendly)
+- Modern & responsive User-Interface (mobile + desktop friendly)
 - Clean dark-themed professional design
 - Sections for:
   - About Me
