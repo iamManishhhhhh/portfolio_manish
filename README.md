@@ -75,7 +75,7 @@ portfolio/
 
 - Add real-world projects
 - Add internship experience
-- Improve SEO & performance
+- Improve SEO and performance
 - Connect contact form to backend
 - Buy & connect a custom domain
 
