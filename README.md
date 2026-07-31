@@ -2,7 +2,7 @@
 
 🚀 This repository contains the source code of my **personal portfolio website**, built to showcase my profile, skills, education, projects & contact details in a clean and professional way.
 
-🔗 **Live Portfolio:**  
+🔗 **Live Portfolio Link:**  
 👉🏻 https://web4manishhhhhh.vercel.app/ 👈🏻
 
 ---
