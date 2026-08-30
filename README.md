@@ -1,4 +1,4 @@
-🌐 Manish Kumar — Personal Portfolio 
+🌐 Manish Kumar — Personal Portfolio Website 
 
 🚀 This repository contains the source code of my **personal portfolio website**, built to showcase my profile, skills, education, projects & contact details in a clean and professional way.
 
