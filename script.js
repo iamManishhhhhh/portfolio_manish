@@ -109,66 +109,69 @@ document.querySelectorAll('.section').forEach(section => {
 // Contact Form Handling
 // ===================================
 const contactForm = document.getElementById('contactForm');
+const emailInput = document.getElementById('email');
+const emailError = document.getElementById('emailError');
+const formStatus = document.getElementById('formStatus');
+const contactSubmit = document.getElementById('contactSubmit');
 
-contactForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    
-    // Get form values
-    const formData = {
-        name: document.getElementById('name').value,
-        email: document.getElementById('email').value,
-        subject: document.getElementById('subject').value,
-        message: document.getElementById('message').value
-    };
-    
-    // In a real application, you would send this data to a backend service
-    // For now, we'll just show a success message
-    
-    // Create success message
-    const successMessage = document.createElement('div');
-    successMessage.className = 'form-success-message';
-    successMessage.innerHTML = `
-        <div style="
-            background-color: rgba(212, 165, 116, 0.1);
-            border: 2px solid var(--accent-primary);
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-            text-align: center;
-            color: var(--accent-primary);
-        ">
-            <i class="fas fa-check-circle" style="font-size: 32px; margin-bottom: 10px;"></i>
-            <p style="margin: 0; font-weight: 500;">Thank you for your message!</p>
-            <p style="margin: 5px 0 0 0; font-size: 14px; color: var(--text-secondary);">
-                This is a demo form. In production, your message would be sent.
-            </p>
-        </div>
-    `;
-    
-    // Remove any existing success message
-    const existingMessage = document.querySelector('.form-success-message');
-    if (existingMessage) {
-        existingMessage.remove();
-    }
-    
-    // Add success message
-    contactForm.appendChild(successMessage);
-    
-    // Reset form
-    contactForm.reset();
-    
-    // Remove success message after 5 seconds
-    setTimeout(() => {
-        successMessage.style.opacity = '0';
-        successMessage.style.transition = 'opacity 0.5s ease-out';
-        setTimeout(() => {
-            successMessage.remove();
-        }, 500);
-    }, 5000);
-    
-    // Log form data (for development purposes)
-    console.log('Form submitted with data:', formData);
-});
+function updateEmailValidation() {
+    const email = emailInput.value.trim();
+    const message = email && !emailInput.validity.valid
+        ? 'Enter a valid email address, for example name@example.com.'
+        : '';
+
+    emailInput.setCustomValidity(message);
+    emailError.textContent = message;
+    emailError.hidden = !message;
+    emailInput.setAttribute('aria-invalid', String(Boolean(message)));
+
+    return !message;
+}
+
+if (contactForm) {
+    emailInput.addEventListener('input', updateEmailValidation);
+    emailInput.addEventListener('blur', updateEmailValidation);
+
+    contactForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        updateEmailValidation();
+
+        if (!contactForm.checkValidity()) {
+            contactForm.reportValidity();
+            return;
+        }
+
+        const originalButtonText = contactSubmit.querySelector('span').textContent;
+        contactSubmit.disabled = true;
+        contactSubmit.querySelector('span').textContent = 'Sending...';
+        formStatus.textContent = '';
+        formStatus.className = 'form-status';
+
+        try {
+            const response = await fetch(contactForm.action, {
+                method: 'POST',
+                body: new FormData(contactForm),
+                headers: { Accept: 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error('Submission failed');
+            }
+
+            contactForm.reset();
+            emailInput.removeAttribute('aria-invalid');
+            emailError.hidden = true;
+            formStatus.textContent = 'Thank you—your message has been sent.';
+            formStatus.classList.add('form-status-success');
+        } catch (error) {
+            formStatus.textContent = 'Your message could not be sent. Please try again or email me directly.';
+            formStatus.classList.add('form-status-error');
+        } finally {
+            contactSubmit.disabled = false;
+            contactSubmit.querySelector('span').textContent = originalButtonText;
+        }
+    });
+}
 
 // ===================================
 // Resume Button Alert

@@ -499,15 +499,6 @@
                         </div>
                         <div class="contact-item">
                             <div class="contact-icon">
-                                <i class="fas fa-phone"></i>
-                            </div>
-                            <div class="contact-text-detail">
-                                <h4>Phone</h4>
-                                <a href="tel:+919709176025">+91 97091 76025</a>
-                            </div>
-                        </div>
-                        <div class="contact-item">
-                            <div class="contact-icon">
                                 <i class="fas fa-map-marker-alt"></i>
                             </div>
                             <div class="contact-text-detail">
@@ -535,14 +526,28 @@
                     </div>
                 </div>
                 <div class="contact-form-wrapper">
-                    <form class="contact-form" id="contactForm">
+                    <form
+                        class="contact-form"
+                        id="contactForm"
+                        action="https://formspree.io/f/mwvbnaze"
+                        method="POST"
+                        novalidate
+                    >
                         <div class="form-group">
                             <label for="name">Your Name</label>
                             <input type="text" id="name" name="name" required>
                         </div>
                         <div class="form-group">
                             <label for="email">Your Email</label>
-                            <input type="email" id="email" name="email" required>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                autocomplete="email"
+                                aria-describedby="emailError"
+                                required
+                            >
+                            <p class="form-field-error" id="emailError" role="alert" hidden></p>
                         </div>
                         <div class="form-group">
                             <label for="subject">Subject</label>
@@ -552,10 +557,11 @@
                             <label for="message">Message</label>
                             <textarea id="message" name="message" rows="5" required></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="contactSubmit">
                             <span>Send Message</span>
                             <i class="fas fa-paper-plane"></i>
                         </button>
+                        <p class="form-status" id="formStatus" role="status" aria-live="polite"></p>
                     </form>
                 </div>
             </div>
