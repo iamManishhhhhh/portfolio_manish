@@ -1069,6 +1069,51 @@ h1, h2, h3, h4, h5, h6 {
     gap: 15px;
 }
 
+.contact-portrait {
+    width: min(100%, 230px);
+    margin-top: 48px;
+}
+
+.contact-portrait-image {
+    display: block;
+    width: 202px;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    object-position: center 38%;
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+}
+
+.contact-signature {
+    margin-top: 12px;
+    color: var(--accent-primary);
+    font-family: 'Dancing Script', cursive;
+    font-size: 39px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.contact-tagline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 13px 0 0;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+.contact-tagline::before {
+    width: 46px;
+    height: 1px;
+    background-color: var(--accent-primary);
+    content: '';
+}
+
 /* Contact Form */
 .contact-form-wrapper {
     background-color: var(--bg-primary);
@@ -1294,6 +1339,10 @@ h1, h2, h3, h4, h5, h6 {
     .contact-content {
         grid-template-columns: 1fr;
         gap: 50px;
+    }
+
+    .contact-portrait {
+        margin-top: 40px;
     }
 }
 
