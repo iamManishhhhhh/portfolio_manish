@@ -106,6 +106,14 @@ module.exports = async function handler(req, res) {
     });
   }
 
+  const emailDomain = email.includes('@') ? email.split('@').pop().toLowerCase() : '';
+  if (emailDomain === 'huyihuyi.in') {
+    return res.status(200).json({
+      valid: false,
+      reason: 'Emails from this domain are not accepted. Please use a real email address.',
+    });
+  }
+
   // ── Layer 1.5: Server-side cache check (avoids duplicate API calls) ───────
   const cacheKey = email.toLowerCase();
   const cached = emailCache.get(cacheKey);

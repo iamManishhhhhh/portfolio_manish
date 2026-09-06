@@ -174,6 +174,13 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Enter a valid email address, for example name@example.com.' });
   }
 
+  // Blocked Domain Check (case-insensitive)
+  const emailDomain = email.includes('@') ? email.split('@').pop().toLowerCase() : '';
+  if (emailDomain === 'huyihuyi.in') {
+    console.warn(`[api/contact] Blocked domain attempt: ${emailDomain}`);
+    return res.status(400).json({ error: 'Emails from this domain are not accepted. Please use a real email address.' });
+  }
+
   // ── Layer 5: Abstract API Email Reputation Check ────────────────────────
   const apiKey = process.env.ABSTRACT_API_KEY;
   let validationResult = { valid: true };
