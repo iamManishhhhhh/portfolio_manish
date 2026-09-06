@@ -66,7 +66,7 @@ async function checkDistributedRateLimit(ip) {
 
   if (!redisUrl || !redisToken) {
     console.warn('[api/contact] Upstash Redis env vars missing. Failing open for IP rate limiter.');
-    return { limited: false };
+    return { limited: false, configured: false };
   }
 
   try {
@@ -85,7 +85,7 @@ async function checkDistributedRateLimit(ip) {
 
     if (!res.ok) {
       console.warn(`[api/contact] Upstash Redis HTTP ${res.status}. Failing open.`);
-      return { limited: false };
+      return { limited: false, configured: true, count: 1 };
     }
 
     const data = await res.json();
@@ -94,13 +94,13 @@ async function checkDistributedRateLimit(ip) {
       : 1;
 
     if (count > MAX_SUBMISSIONS_PER_IP) {
-      return { limited: true, count };
+      return { limited: true, configured: true, count };
     }
 
-    return { limited: false, count };
+    return { limited: false, configured: true, count };
   } catch (err) {
     console.warn('[api/contact] Distributed rate limiter error:', err.message);
-    return { limited: false };
+    return { limited: false, configured: true, count: 1 };
   }
 }
 
@@ -144,6 +144,11 @@ module.exports = async function handler(req, res) {
   const clientIp = rawIp.toString().trim();
 
   const rateCheck = await checkDistributedRateLimit(clientIp);
+  res.setHeader('X-RateLimit-Limit', MAX_SUBMISSIONS_PER_IP.toString());
+  if (rateCheck.configured && typeof rateCheck.count === 'number') {
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, MAX_SUBMISSIONS_PER_IP - rateCheck.count).toString());
+  }
+
   if (rateCheck.limited) {
     console.warn(`[api/contact] Distributed rate limit exceeded for IP: ${clientIp}`);
     return res.status(429).json({
