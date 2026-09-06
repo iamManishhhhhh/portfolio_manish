@@ -114,44 +114,126 @@ const emailError = document.getElementById('emailError');
 const formStatus = document.getElementById('formStatus');
 const contactSubmit = document.getElementById('contactSubmit');
 
-function updateEmailValidation() {
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+function updateEmailValidation(forceShowError = false) {
+    if (!emailInput) return true;
+
+    // Reset custom validity first so validity.customError is cleared
+    emailInput.setCustomValidity('');
+
     const email = emailInput.value.trim();
-    const message = email && !emailInput.validity.valid
-        ? 'Enter a valid email address, for example name@example.com.'
-        : '';
 
-    emailInput.setCustomValidity(message);
-    emailError.textContent = message;
-    emailError.hidden = !message;
-    emailInput.setAttribute('aria-invalid', String(Boolean(message)));
+    if (!email) {
+        if (forceShowError) {
+            const message = 'Please enter your email address.';
+            emailInput.setCustomValidity(message);
+            if (emailError) {
+                emailError.textContent = message;
+                emailError.hidden = false;
+            }
+            emailInput.setAttribute('aria-invalid', 'true');
+            return false;
+        }
+        if (emailError) {
+            emailError.textContent = '';
+            emailError.hidden = true;
+        }
+        emailInput.removeAttribute('aria-invalid');
+        return false;
+    }
 
-    return !message;
+    const isValid = EMAIL_REGEX.test(email) && emailInput.checkValidity();
+
+    if (!isValid) {
+        const message = 'Enter a valid email address, for example name@example.com.';
+        emailInput.setCustomValidity(message);
+
+        // Display error if explicitly requested (submit/blur) or if an error is already showing
+        if (emailError && (forceShowError || !emailError.hidden)) {
+            emailError.textContent = message;
+            emailError.hidden = false;
+            emailInput.setAttribute('aria-invalid', 'true');
+        }
+        return false;
+    }
+
+    // Valid email address
+    emailInput.setCustomValidity('');
+    if (emailError) {
+        emailError.textContent = '';
+        emailError.hidden = true;
+    }
+    emailInput.removeAttribute('aria-invalid');
+    return true;
 }
 
-if (contactForm) {
-    emailInput.addEventListener('input', updateEmailValidation);
-    emailInput.addEventListener('blur', updateEmailValidation);
+if (contactForm && emailInput) {
+    emailInput.addEventListener('input', () => {
+        updateEmailValidation(false);
+    });
+
+    emailInput.addEventListener('blur', () => {
+        if (emailInput.value.trim()) {
+            updateEmailValidation(true);
+        }
+    });
 
     contactForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-        updateEmailValidation();
 
-        if (!contactForm.checkValidity()) {
+        // Layer 1: fast local format check (no network)
+        const isFormatValid = updateEmailValidation(true);
+        if (!isFormatValid || !contactForm.checkValidity()) {
             contactForm.reportValidity();
             return;
         }
 
         const originalButtonText = contactSubmit.querySelector('span').textContent;
         contactSubmit.disabled = true;
-        contactSubmit.querySelector('span').textContent = 'Sending...';
+        contactSubmit.querySelector('span').textContent = 'Verifying...';
         formStatus.textContent = '';
         formStatus.className = 'form-status';
 
+        // Layer 2: reputation check via our own backend proxy (never exposes the API key)
+        const emailValue = emailInput.value.trim();
+        try {
+            const validateRes = await fetch('/api/validate-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ email: emailValue }),
+            });
+
+            if (validateRes.ok) {
+                const result = await validateRes.json();
+                if (!result.valid) {
+                    // Reputation check failed — show error, do not submit
+                    const msg = result.reason ||
+                        'This email address does not appear to be deliverable. Please use a real address.';
+                    if (emailError) {
+                        emailError.textContent = msg;
+                        emailError.hidden = false;
+                    }
+                    emailInput.setAttribute('aria-invalid', 'true');
+                    emailInput.setCustomValidity(msg);
+                    contactSubmit.disabled = false;
+                    contactSubmit.querySelector('span').textContent = originalButtonText;
+                    return;
+                }
+                // result.valid === true (or fallback mode) — proceed
+            }
+            // Non-ok HTTP or fallback: don't block the user, just skip reputation check
+        } catch (_err) {
+            // API unavailable — proceed with Formspree submission
+        }
+
+        // Layer 3: Submit to Formspree
+        contactSubmit.querySelector('span').textContent = 'Sending...';
         try {
             const response = await fetch(contactForm.action, {
                 method: 'POST',
                 body: new FormData(contactForm),
-                headers: { Accept: 'application/json' }
+                headers: { Accept: 'application/json' },
             });
 
             if (!response.ok) {
@@ -160,10 +242,11 @@ if (contactForm) {
 
             contactForm.reset();
             emailInput.removeAttribute('aria-invalid');
-            emailError.hidden = true;
-            formStatus.textContent = 'Thank you—your message has been sent.';
+            emailInput.setCustomValidity('');
+            if (emailError) emailError.hidden = true;
+            formStatus.textContent = 'Thank you\u2014your message has been sent.';
             formStatus.classList.add('form-status-success');
-        } catch (error) {
+        } catch (_err) {
             formStatus.textContent = 'Your message could not be sent. Please try again or email me directly.';
             formStatus.classList.add('form-status-error');
         } finally {
@@ -178,7 +261,8 @@ if (contactForm) {
 // ===================================
 const resumeBtn = document.getElementById('resumeBtn');
 
-resumeBtn.addEventListener('click', (e) => {
+if (resumeBtn) {
+    resumeBtn.addEventListener('click', (e) => {
     e.preventDefault();
     
     // Create custom alert
@@ -237,7 +321,8 @@ resumeBtn.addEventListener('click', (e) => {
     
     document.body.appendChild(overlay);
     document.body.appendChild(alertBox);
-});
+    });
+}
 
 // ===================================
 // Typed Effect for Hero Subtitle (Optional Enhancement)
