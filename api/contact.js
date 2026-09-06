@@ -5,9 +5,11 @@
  * 1. Honeypot check (silent drop for bots)
  * 2. Distributed Upstash Redis IP rate limiting (5 submissions per 10 mins per IP -> HTTP 429)
  * 3. Duplicate payload detection (IP + email + message hash within 5 mins)
- * 4. Local email syntax validation (RFC 5321)
- * 5. Abstract API email reputation check (disposable, MX, deliverability)
- * 6. Server-side proxy forwarding to Formspree
+ * 4. Local email syntax normalization & RFC 5321 regex validation
+ * 5. Generalized disposable/temporary-email domain detection
+ * 6. Server-side Node.js DNS / MX record capability verification
+ * 7. Abstract API email reputation check (disposable, MX, deliverability)
+ * 8. Server-side proxy forwarding to Formspree
  *
  * Environment Variables (Server-side ONLY):
  * - ABSTRACT_API_KEY
@@ -17,11 +19,25 @@
 
 'use strict';
 
+const dns = require('dns').promises;
+
 const FORMSPREE_ENDPOINT = 'https://formspree.io/f/mwvbnaze';
 const ABSTRACT_API_URL = 'https://emailvalidation.abstractapi.com/v1/';
 
 const EMAIL_FORMAT_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+// Known disposable & temporary email domain blocklist (case-insensitive)
+const DISPOSABLE_DOMAINS = new Set([
+  'huyihuyi.in', 'hahaha.in', 'mailinator.com', 'tempmail.com', '10minutemail.com',
+  'dispostable.com', 'guerrillamail.com', 'trashmail.com', 'yopmail.com',
+  'sharklasers.com', 'getnada.com', 'temp-mail.org', 'throwawaymail.com',
+  'fakeinbox.com', 'maildrop.cc', 'disposablemail.com', 'inboxkitten.com',
+  'generator.email', 'crazymailing.com', 'tempmail.net', 'tempmailo.com',
+  'burnermail.io', 'mohmal.com', 'dropmail.me', 'mailnesia.com', 'disposable.com',
+  'nada.ltd', 'mailnull.com', 'spamgourmet.com', 'trashmail.net', 'mytemp.email',
+  'emailondeck.com', 'tempinbox.com', 'throwawayemail.com'
+]);
 
 // Distributed Rate Limiter Config
 const MAX_SUBMISSIONS_PER_IP = 5;
@@ -31,7 +47,7 @@ const RATE_LIMIT_TTL_SECONDS = 600; // 10 minutes (600 seconds)
 const payloadCache = new Map();
 const PAYLOAD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-// In-memory Abstract API validation cache
+// In-memory Abstract API & DNS validation cache
 const emailCache = new Map();
 const EMAIL_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -53,6 +69,40 @@ function getBool(data, key1, key2) {
   if (typeof val === 'boolean') return val;
   if (typeof val === 'object' && typeof val.value === 'boolean') return val.value;
   return null;
+}
+
+/**
+ * Server-side DNS MX record & A/AAAA mail capability check.
+ * Verifies if the domain has active mail-exchange infrastructure.
+ */
+async function verifyDomainMailCapability(domain) {
+  if (!domain) return false;
+
+  // 1. Check MX records first (standard mail servers)
+  try {
+    const mxRecords = await dns.resolveMx(domain);
+    if (Array.isArray(mxRecords) && mxRecords.length > 0) {
+      return true;
+    }
+  } catch (_err) {}
+
+  // 2. Fall back to A record (RFC 5321 section 5.1 allows direct A record delivery)
+  try {
+    const aRecords = await dns.resolve4(domain);
+    if (Array.isArray(aRecords) && aRecords.length > 0) {
+      return true;
+    }
+  } catch (_err) {}
+
+  // 3. Fall back to AAAA record
+  try {
+    const aaaaRecords = await dns.resolve6(domain);
+    if (Array.isArray(aaaaRecords) && aaaaRecords.length > 0) {
+      return true;
+    }
+  } catch (_err) {}
+
+  return false;
 }
 
 /**
@@ -125,7 +175,7 @@ module.exports = async function handler(req, res) {
 
   const body = req.body || {};
   const name = (body.name || '').toString().trim();
-  const email = (body.email || '').toString().trim();
+  const rawEmail = (body.email || '').toString().trim();
   const subject = (body.subject || '').toString().trim();
   const message = (body.message || '').toString().trim();
   const websiteHp = (body.website_hp || '').toString().trim();
@@ -157,43 +207,61 @@ module.exports = async function handler(req, res) {
   }
 
   // ── Layer 3: Duplicate Payload Prevention ────────────────────────────────
-  if (isDuplicatePayload(clientIp, email, message)) {
+  if (isDuplicatePayload(clientIp, rawEmail, message)) {
     console.warn(`[api/contact] Duplicate payload blocked from IP: ${clientIp}`);
     return res.status(400).json({
       error: 'Duplicate message detected. Please wait a few minutes before resubmitting.',
     });
   }
 
-  // ── Layer 4: Basic Input Validation ──────────────────────────────────────
-  if (!name || !email || !message) {
+  // ── Layer 4: Basic Input Validation & Email Normalization ────────────────
+  if (!name || !rawEmail || !message) {
     return res.status(400).json({ error: 'Name, email, and message are required fields.' });
   }
 
-  // Local Syntax Validation
-  if (!EMAIL_FORMAT_REGEX.test(email)) {
+  const normalizedEmail = rawEmail.toLowerCase();
+  const domain = normalizedEmail.includes('@') ? normalizedEmail.split('@').pop() : '';
+
+  // Local RFC 5321 Syntax Validation
+  if (!EMAIL_FORMAT_REGEX.test(normalizedEmail) || !domain) {
     return res.status(400).json({ error: 'Enter a valid email address, for example name@example.com.' });
   }
 
-  // Blocked Domain Check (case-insensitive)
-  const emailDomain = email.includes('@') ? email.split('@').pop().toLowerCase() : '';
-  if (emailDomain === 'huyihuyi.in') {
-    console.warn(`[api/contact] Blocked domain attempt: ${emailDomain}`);
-    return res.status(400).json({ error: 'Emails from this domain are not accepted. Please use a real email address.' });
+  // Generalized Disposable / Temporary Email Domain Check
+  if (DISPOSABLE_DOMAINS.has(domain)) {
+    console.warn(`[api/contact] Disposable email domain blocked: ${domain}`);
+    return res.status(400).json({ error: 'Disposable or temporary email addresses are not accepted.' });
   }
 
-  // ── Layer 5: Abstract API Email Reputation Check ────────────────────────
+  // ── Layer 5: Server-Side DNS / MX Mail Capability Lookup ─────────────────
+  const cacheKey = normalizedEmail;
+  const cached = emailCache.get(cacheKey);
+
+  if (cached && (Date.now() - cached.timestamp < EMAIL_CACHE_TTL_MS)) {
+    if (!cached.result.valid) {
+      return res.status(400).json({ error: cached.result.reason || 'Invalid email address.' });
+    }
+  } else {
+    // Perform server-side DNS MX / A record check for domain mail capability
+    const hasMailCapability = await verifyDomainMailCapability(domain);
+    if (!hasMailCapability) {
+      console.warn(`[api/contact] DNS MX lookup failed for domain: ${domain}`);
+      const invalidResult = { valid: false, reason: 'This domain does not appear to have valid mail servers. Please check your email address for typos.' };
+      emailCache.set(cacheKey, { result: invalidResult, timestamp: Date.now() });
+      return res.status(400).json({ error: invalidResult.reason });
+    }
+  }
+
+  // ── Layer 6: Abstract API Email Reputation Check (If configured & active) ─
   const apiKey = process.env.ABSTRACT_API_KEY;
   let validationResult = { valid: true };
 
   if (apiKey && apiKey.trim() !== '') {
-    const cacheKey = email.toLowerCase();
-    const cached = emailCache.get(cacheKey);
-
     if (cached && (Date.now() - cached.timestamp < EMAIL_CACHE_TTL_MS)) {
       validationResult = cached.result;
     } else if (Date.now() >= quotaExhaustedUntil) {
       try {
-        const url = `${ABSTRACT_API_URL}?api_key=${apiKey.trim()}&email=${encodeURIComponent(email)}`;
+        const url = `${ABSTRACT_API_URL}?api_key=${apiKey.trim()}&email=${encodeURIComponent(normalizedEmail)}`;
         const abstractRes = await fetchWithTimeout(url, { method: 'GET' }, 7000);
 
         if (abstractRes.status === 429 || abstractRes.status === 401 || abstractRes.status === 403) {
@@ -224,7 +292,7 @@ module.exports = async function handler(req, res) {
           emailCache.set(cacheKey, { result: validationResult, timestamp: Date.now() });
         }
       } catch (err) {
-        console.warn('[api/contact] Abstract API error, falling back:', err.message);
+        console.warn('[api/contact] Abstract API error, falling back to DNS/MX check:', err.message);
       }
     }
   }
@@ -233,7 +301,7 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: validationResult.reason || 'Invalid email address.' });
   }
 
-  // ── Layer 6: Forward Payload to Formspree (Server-Side Proxy) ───────────
+  // ── Layer 7: Forward Payload to Formspree (Server-Side Proxy) ───────────
   try {
     const formspreeRes = await fetchWithTimeout(FORMSPREE_ENDPOINT, {
       method: 'POST',
@@ -243,7 +311,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         name,
-        email,
+        email: normalizedEmail,
         subject: subject || 'Portfolio Contact Form Submission',
         message,
       }),
