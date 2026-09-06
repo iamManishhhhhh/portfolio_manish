@@ -1,16 +1,4 @@
 {
-  "version": 2,
-  "functions": {
-    "api/validate-email.js": {
-      "runtime": "@vercel/node@3.x"
-    }
-  },
-  "routes": [
-    {
-      "src": "/api/validate-email",
-      "dest": "/api/validate-email.js"
-    }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
