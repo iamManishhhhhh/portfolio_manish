@@ -100,8 +100,12 @@ module.exports = async function handler(req, res) {
   }
 
   // ── Layer 2: Server-Side IP Rate Limiting (3 submissions / 10 mins) ──────
-  const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '127.0.0.1')
-    .toString().split(',')[0].trim();
+  // On Vercel, x-real-ip is injected by Vercel's edge proxy and cannot be spoofed by the client.
+  const rawIp = req.headers['x-real-ip'] ||
+    (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].toString().split(',')[0] : '') ||
+    req.socket?.remoteAddress ||
+    '127.0.0.1';
+  const clientIp = rawIp.toString().trim();
 
   if (isIpRateLimited(clientIp)) {
     console.warn(`[api/contact] Rate limit exceeded for IP: ${clientIp}`);
