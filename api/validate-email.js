@@ -32,6 +32,24 @@ const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 let quotaExhaustedUntil = 0;
 const CIRCUIT_BREAKER_COOL_DOWN_MS = 15 * 60 * 1000; // 15 minutes
 
+// Sliding window IP rate limiting (5 validation requests per IP per minute)
+const ipRateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_IP = 5;
+
+function isIpRateLimited(ip) {
+  if (!ip) return false;
+  const now = Date.now();
+  const timestamps = (ipRateLimitMap.get(ip) || []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+  if (timestamps.length >= MAX_REQUESTS_PER_IP) {
+    ipRateLimitMap.set(ip, timestamps);
+    return true;
+  }
+  timestamps.push(now);
+  ipRateLimitMap.set(ip, timestamps);
+  return false;
+}
+
 function getBool(data, key1, key2) {
   if (!data) return null;
   const val = data[key1] !== undefined ? data[key1] : (key2 ? data[key2] : undefined);
@@ -51,8 +69,27 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST');
 
-  // ── Parse & validate body ─────────────────────────────────────────────────
+  // ── Parse body ───────────────────────────────────────────────────────────
   const body = req.body;
+
+  // ── Layer 0: Honeypot check (catches automated bots instantly) ────────────
+  if (body && typeof body === 'object' && body.website_hp && body.website_hp.toString().trim() !== '') {
+    console.warn('[validate-email] Bot submission caught via honeypot field');
+    return res.status(200).json({ valid: false, reason: 'Spam submission detected.' });
+  }
+
+  // ── Layer 0.5: IP Rate Limit check (prevents submission flooding) ────────
+  const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '127.0.0.1')
+    .toString().split(',')[0].trim();
+
+  if (isIpRateLimited(clientIp)) {
+    console.warn(`[validate-email] Rate limit exceeded for IP: ${clientIp}`);
+    return res.status(200).json({
+      valid: false,
+      reason: 'Too many validation requests. Please wait a minute before submitting again.',
+    });
+  }
+
   const email = (typeof body === 'object' && body !== null)
     ? (body.email || '').toString().trim()
     : '';

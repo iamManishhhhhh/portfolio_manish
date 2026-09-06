@@ -545,6 +545,12 @@
                         method="POST"
                         novalidate
                     >
+                        <!-- Anti-Spam Honeypot Field (hidden from real users, filled by bots) -->
+                        <div class="hp-field" aria-hidden="true" style="display: none !important; position: absolute; left: -9999px; top: -9999px;">
+                            <label for="website_hp">Do not fill this field</label>
+                            <input type="text" id="website_hp" name="website_hp" tabindex="-1" autocomplete="off">
+                        </div>
+
                         <div class="form-group">
                             <label for="name">Your Name</label>
                             <input type="text" id="name" name="name" required>

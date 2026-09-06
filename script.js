@@ -186,6 +186,18 @@ if (contactForm && emailInput) {
         if (isFormSubmitting) return;
         isFormSubmitting = true;
 
+        // Layer 0: Anti-Spam Honeypot Check (silent drop for automated bots)
+        const honeypotInput = document.getElementById('website_hp');
+        const honeypotVal = honeypotInput ? honeypotInput.value.trim() : '';
+        if (honeypotVal !== '') {
+            console.warn('[contactForm] Honeypot field filled. Silently dropping bot submission.');
+            formStatus.textContent = 'Thank you\u2014your message has been sent.';
+            formStatus.className = 'form-status form-status-success';
+            contactForm.reset();
+            isFormSubmitting = false;
+            return;
+        }
+
         // Layer 1: fast local format check (no network)
         const isFormatValid = updateEmailValidation(true);
         if (!isFormatValid || !contactForm.checkValidity()) {
@@ -211,7 +223,7 @@ if (contactForm && emailInput) {
                 const validateRes = await fetch('/api/validate-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify({ email: emailValue }),
+                    body: JSON.stringify({ email: emailValue, website_hp: honeypotVal }),
                 });
 
                 if (validateRes.ok) {
