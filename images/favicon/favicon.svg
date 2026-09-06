@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#181818"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e0b886"/>
+      <stop offset="50%" stop-color="#d4a574"/>
+      <stop offset="100%" stop-color="#c89858"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded container with gold accent border -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="url(#goldGrad)" stroke-width="16" opacity="0.9"/>
+  
+  <!-- MK Monogram -->
+  <text x="50%" y="54%" dominant-baseline="central" text-anchor="middle" font-family="'Cormorant Garamond', 'Georgia', 'Times New Roman', serif" font-weight="700" font-size="240" fill="url(#goldGrad)" letter-spacing="4">MK</text>
+</svg>

@@ -119,7 +119,7 @@ const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-
 function updateEmailValidation(forceShowError = false) {
     if (!emailInput) return true;
 
-    // Reset custom validity first so validity.customError is cleared
+    // Always reset first — avoids stale customValidity poisoning validity.valid
     emailInput.setCustomValidity('');
 
     const email = emailInput.value.trim();
@@ -143,13 +143,11 @@ function updateEmailValidation(forceShowError = false) {
         return false;
     }
 
-    const isValid = EMAIL_REGEX.test(email) && emailInput.checkValidity();
-
-    if (!isValid) {
+    // Use our regex — do NOT call checkValidity() here; it reads back the
+    // browser's state which may be stale in some browser/OS combinations.
+    if (!EMAIL_REGEX.test(email)) {
         const message = 'Enter a valid email address, for example name@example.com.';
         emailInput.setCustomValidity(message);
-
-        // Display error if explicitly requested (submit/blur) or if an error is already showing
         if (emailError && (forceShowError || !emailError.hidden)) {
             emailError.textContent = message;
             emailError.hidden = false;
@@ -158,8 +156,7 @@ function updateEmailValidation(forceShowError = false) {
         return false;
     }
 
-    // Valid email address
-    emailInput.setCustomValidity('');
+    // Format is valid
     if (emailError) {
         emailError.textContent = '';
         emailError.hidden = true;
