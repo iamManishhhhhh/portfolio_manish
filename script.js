@@ -198,6 +198,19 @@ if (contactForm && emailInput) {
             return;
         }
 
+        // Layer 0.5: Client Session Rate Limiter (2nd anti-abuse layer for browser session)
+        try {
+            const now = Date.now();
+            const sessionData = JSON.parse(sessionStorage.getItem('mk_form_submissions') || '[]');
+            const recentSubmissions = sessionData.filter(t => now - t < 10 * 60 * 1000);
+            if (recentSubmissions.length >= 3) {
+                formStatus.textContent = 'Too many submissions from this browser session. Please wait 10 minutes before sending another message.';
+                formStatus.className = 'form-status form-status-error';
+                isFormSubmitting = false;
+                return;
+            }
+        } catch (_err) {}
+
         // Layer 1: fast local format check (no network)
         const isFormatValid = updateEmailValidation(true);
         if (!isFormatValid || !contactForm.checkValidity()) {
@@ -208,77 +221,71 @@ if (contactForm && emailInput) {
 
         const originalButtonText = contactSubmit.querySelector('span').textContent;
         contactSubmit.disabled = true;
-        contactSubmit.querySelector('span').textContent = 'Verifying...';
+        contactSubmit.querySelector('span').textContent = 'Sending...';
         formStatus.textContent = '';
         formStatus.className = 'form-status';
 
-        // Layer 2: reputation check via our own backend proxy (never exposes the API key)
-        const emailValue = emailInput.value.trim().toLowerCase();
-        let validationResult = null;
+        const nameVal = document.getElementById('name') ? document.getElementById('name').value.trim() : '';
+        const emailVal = emailInput.value.trim();
+        const subjectVal = document.getElementById('subject') ? document.getElementById('subject').value.trim() : '';
+        const messageVal = document.getElementById('message') ? document.getElementById('message').value.trim() : '';
 
-        if (emailValidationCache.has(emailValue)) {
-            validationResult = emailValidationCache.get(emailValue);
-        } else if (!isQuotaExhaustedClient) {
-            try {
-                const validateRes = await fetch('/api/validate-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify({ email: emailValue, website_hp: honeypotVal }),
-                });
-
-                if (validateRes.ok) {
-                    const result = await validateRes.json();
-                    if (result.fallback) {
-                        isQuotaExhaustedClient = true;
-                    }
-                    emailValidationCache.set(emailValue, result);
-                    validationResult = result;
-                } else {
-                    isQuotaExhaustedClient = true;
-                }
-            } catch (_err) {
-                isQuotaExhaustedClient = true;
-            }
-        }
-
-        if (validationResult && !validationResult.valid) {
-            // Reputation check failed — show error, do not submit
-            const msg = validationResult.reason ||
-                'This email address does not appear to be deliverable. Please use a real address.';
-            if (emailError) {
-                emailError.textContent = msg;
-                emailError.hidden = false;
-            }
-            emailInput.setAttribute('aria-invalid', 'true');
-            emailInput.setCustomValidity(msg);
-            contactSubmit.disabled = false;
-            contactSubmit.querySelector('span').textContent = originalButtonText;
-            isFormSubmitting = false;
-            return;
-        }
-
-        // Layer 3: Submit to Formspree
-        contactSubmit.querySelector('span').textContent = 'Sending...';
+        // Layer 2: Send complete payload to /api/contact serverless endpoint
+        // (Handles IP rate limiting, honeypot, Abstract API check, and server-side Formspree proxy)
         try {
-            const response = await fetch(contactForm.action, {
+            const response = await fetch('/api/contact', {
                 method: 'POST',
-                body: new FormData(contactForm),
-                headers: { Accept: 'application/json' },
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({
+                    name: nameVal,
+                    email: emailVal,
+                    subject: subjectVal,
+                    message: messageVal,
+                    website_hp: honeypotVal,
+                }),
             });
 
+            const data = await response.json().catch(() => ({}));
+
             if (!response.ok) {
-                throw new Error('Submission failed');
+                const errMsg = data.error || data.reason || 'Your message could not be sent. Please try again.';
+                if (response.status === 429) {
+                    formStatus.textContent = errMsg;
+                    formStatus.className = 'form-status form-status-error';
+                } else if (data.reason || (data.error && data.error.toLowerCase().includes('email'))) {
+                    if (emailError) {
+                        emailError.textContent = errMsg;
+                        emailError.hidden = false;
+                    }
+                    emailInput.setAttribute('aria-invalid', 'true');
+                    emailInput.setCustomValidity(errMsg);
+                    formStatus.textContent = '';
+                } else {
+                    formStatus.textContent = errMsg;
+                    formStatus.className = 'form-status form-status-error';
+                }
+                return;
             }
+
+            // Success -> record session timestamp
+            try {
+                const now = Date.now();
+                const sessionData = JSON.parse(sessionStorage.getItem('mk_form_submissions') || '[]');
+                const recentSubmissions = sessionData.filter(t => now - t < 10 * 60 * 1000);
+                recentSubmissions.push(now);
+                sessionStorage.setItem('mk_form_submissions', JSON.stringify(recentSubmissions));
+            } catch (_err) {}
 
             contactForm.reset();
             emailInput.removeAttribute('aria-invalid');
             emailInput.setCustomValidity('');
             if (emailError) emailError.hidden = true;
             formStatus.textContent = 'Thank you\u2014your message has been sent.';
-            formStatus.classList.add('form-status-success');
+            formStatus.className = 'form-status form-status-success';
+
         } catch (_err) {
-            formStatus.textContent = 'Your message could not be sent. Please try again or email me directly.';
-            formStatus.classList.add('form-status-error');
+            formStatus.textContent = 'Your message could not be sent due to a network error. Please try again later.';
+            formStatus.className = 'form-status form-status-error';
         } finally {
             contactSubmit.disabled = false;
             contactSubmit.querySelector('span').textContent = originalButtonText;
