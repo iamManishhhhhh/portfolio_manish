@@ -24,6 +24,14 @@ function fetchWithTimeout(url, ms) {
     .finally(() => clearTimeout(timer));
 }
 
+// In-memory cache for recent email validations (persists in warm serverless instances)
+const emailCache = new Map();
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+// Circuit breaker for Abstract API quota/rate-limit errors
+let quotaExhaustedUntil = 0;
+const CIRCUIT_BREAKER_COOL_DOWN_MS = 15 * 60 * 1000; // 15 minutes
+
 function getBool(data, key1, key2) {
   if (!data) return null;
   const val = data[key1] !== undefined ? data[key1] : (key2 ? data[key2] : undefined);
@@ -61,6 +69,19 @@ module.exports = async function handler(req, res) {
     });
   }
 
+  // ── Layer 1.5: Server-side cache check (avoids duplicate API calls) ───────
+  const cacheKey = email.toLowerCase();
+  const cached = emailCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    return res.status(200).json(cached.result);
+  }
+
+  // ── Layer 1.6: Circuit breaker check (if quota was exhausted recently) ────
+  if (Date.now() < quotaExhaustedUntil) {
+    console.warn('[validate-email] Circuit breaker active – skipping Abstract API call');
+    return res.status(200).json({ valid: true, fallback: true });
+  }
+
   // ── Layer 2: Abstract API reputation check ────────────────────────────────
   const apiKey = process.env.ABSTRACT_API_KEY;
 
@@ -74,7 +95,14 @@ module.exports = async function handler(req, res) {
     const url = `${ABSTRACT_API_URL}?api_key=${apiKey.trim()}&email=${encodeURIComponent(email)}`;
     const abstractRes = await fetchWithTimeout(url, 7000);
 
-    // Any non-2xx from Abstract API → fall back gracefully
+    // Handle 429 Quota Exceeded or 401/403 Auth errors with circuit breaker
+    if (abstractRes.status === 429 || abstractRes.status === 401 || abstractRes.status === 403) {
+      console.warn(`[validate-email] Abstract API status ${abstractRes.status}. Activating circuit breaker.`);
+      quotaExhaustedUntil = Date.now() + CIRCUIT_BREAKER_COOL_DOWN_MS;
+      return res.status(200).json({ valid: true, fallback: true });
+    }
+
+    // Any other non-2xx from Abstract API → fall back gracefully without locking out users
     if (!abstractRes.ok) {
       console.warn('[validate-email] Abstract API responded with HTTP', abstractRes.status);
       return res.status(200).json({ valid: true, fallback: true });
@@ -90,36 +118,37 @@ module.exports = async function handler(req, res) {
       ? data.deliverability.toUpperCase()
       : (data.status ? data.status.toString().toUpperCase() : 'UNKNOWN');
 
+    let result;
+
     if (isFormatValid === false) {
-      return res.status(200).json({
+      result = {
         valid: false,
         reason: 'Enter a valid email address, for example name@example.com.',
-      });
-    }
-
-    if (isDisposable === true) {
-      return res.status(200).json({
+      };
+    } else if (isDisposable === true) {
+      result = {
         valid: false,
         reason: 'Disposable or temporary email addresses are not accepted.',
-      });
-    }
-
-    if (isMxFound === false) {
-      return res.status(200).json({
+      };
+    } else if (isMxFound === false) {
+      result = {
         valid: false,
         reason: 'This domain cannot receive emails. Please check your email for typos.',
-      });
-    }
-
-    if (deliverability === 'UNDELIVERABLE' || isSmtpValid === false) {
-      return res.status(200).json({
+      };
+    } else if (deliverability === 'UNDELIVERABLE' || isSmtpValid === false) {
+      result = {
         valid: false,
         reason: 'This email address does not appear to exist. Please use a real address.',
-      });
+      };
+    } else {
+      // DELIVERABLE or UNKNOWN → allow
+      result = { valid: true };
     }
 
-    // DELIVERABLE or UNKNOWN → allow
-    return res.status(200).json({ valid: true });
+    // Cache the result for subsequent requests
+    emailCache.set(cacheKey, { result, timestamp: Date.now() });
+
+    return res.status(200).json(result);
 
   } catch (err) {
     // Timeout, network error, JSON parse error → fail open

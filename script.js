@@ -165,6 +165,10 @@ function updateEmailValidation(forceShowError = false) {
     return true;
 }
 
+const emailValidationCache = new Map();
+let isFormSubmitting = false;
+let isQuotaExhaustedClient = false;
+
 if (contactForm && emailInput) {
     emailInput.addEventListener('input', () => {
         updateEmailValidation(false);
@@ -179,10 +183,14 @@ if (contactForm && emailInput) {
     contactForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
+        if (isFormSubmitting) return;
+        isFormSubmitting = true;
+
         // Layer 1: fast local format check (no network)
         const isFormatValid = updateEmailValidation(true);
         if (!isFormatValid || !contactForm.checkValidity()) {
             contactForm.reportValidity();
+            isFormSubmitting = false;
             return;
         }
 
@@ -193,35 +201,48 @@ if (contactForm && emailInput) {
         formStatus.className = 'form-status';
 
         // Layer 2: reputation check via our own backend proxy (never exposes the API key)
-        const emailValue = emailInput.value.trim();
-        try {
-            const validateRes = await fetch('/api/validate-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                body: JSON.stringify({ email: emailValue }),
-            });
+        const emailValue = emailInput.value.trim().toLowerCase();
+        let validationResult = null;
 
-            if (validateRes.ok) {
-                const result = await validateRes.json();
-                if (!result.valid) {
-                    // Reputation check failed — show error, do not submit
-                    const msg = result.reason ||
-                        'This email address does not appear to be deliverable. Please use a real address.';
-                    if (emailError) {
-                        emailError.textContent = msg;
-                        emailError.hidden = false;
+        if (emailValidationCache.has(emailValue)) {
+            validationResult = emailValidationCache.get(emailValue);
+        } else if (!isQuotaExhaustedClient) {
+            try {
+                const validateRes = await fetch('/api/validate-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({ email: emailValue }),
+                });
+
+                if (validateRes.ok) {
+                    const result = await validateRes.json();
+                    if (result.fallback) {
+                        isQuotaExhaustedClient = true;
                     }
-                    emailInput.setAttribute('aria-invalid', 'true');
-                    emailInput.setCustomValidity(msg);
-                    contactSubmit.disabled = false;
-                    contactSubmit.querySelector('span').textContent = originalButtonText;
-                    return;
+                    emailValidationCache.set(emailValue, result);
+                    validationResult = result;
+                } else {
+                    isQuotaExhaustedClient = true;
                 }
-                // result.valid === true (or fallback mode) — proceed
+            } catch (_err) {
+                isQuotaExhaustedClient = true;
             }
-            // Non-ok HTTP or fallback: don't block the user, just skip reputation check
-        } catch (_err) {
-            // API unavailable — proceed with Formspree submission
+        }
+
+        if (validationResult && !validationResult.valid) {
+            // Reputation check failed — show error, do not submit
+            const msg = validationResult.reason ||
+                'This email address does not appear to be deliverable. Please use a real address.';
+            if (emailError) {
+                emailError.textContent = msg;
+                emailError.hidden = false;
+            }
+            emailInput.setAttribute('aria-invalid', 'true');
+            emailInput.setCustomValidity(msg);
+            contactSubmit.disabled = false;
+            contactSubmit.querySelector('span').textContent = originalButtonText;
+            isFormSubmitting = false;
+            return;
         }
 
         // Layer 3: Submit to Formspree
@@ -249,6 +270,7 @@ if (contactForm && emailInput) {
         } finally {
             contactSubmit.disabled = false;
             contactSubmit.querySelector('span').textContent = originalButtonText;
+            isFormSubmitting = false;
         }
     });
 }
