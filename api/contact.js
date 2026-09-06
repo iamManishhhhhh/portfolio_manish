@@ -3,13 +3,16 @@
  *
  * Handles complete contact form submission with multi-layered anti-spam:
  * 1. Honeypot check (silent drop for bots)
- * 2. IP-based rate limiting (3 submissions per 10 minutes per IP -> HTTP 429)
+ * 2. Distributed Upstash Redis IP rate limiting (5 submissions per 10 mins per IP -> HTTP 429)
  * 3. Duplicate payload detection (IP + email + message hash within 5 mins)
  * 4. Local email syntax validation (RFC 5321)
  * 5. Abstract API email reputation check (disposable, MX, deliverability)
  * 6. Server-side proxy forwarding to Formspree
  *
- * The Abstract API key lives ONLY in process.env.ABSTRACT_API_KEY
+ * Environment Variables (Server-side ONLY):
+ * - ABSTRACT_API_KEY
+ * - UPSTASH_REDIS_REST_URL
+ * - UPSTASH_REDIS_REST_TOKEN
  */
 
 'use strict';
@@ -20,13 +23,12 @@ const ABSTRACT_API_URL = 'https://emailvalidation.abstractapi.com/v1/';
 const EMAIL_FORMAT_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
-// In-memory IP rate limiter: max 3 submissions per IP per 10 minutes
-const ipSubmissionMap = new Map(); // IP -> Array of timestamps
-const SUBMISSION_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_SUBMISSIONS_PER_IP = 3;
+// Distributed Rate Limiter Config
+const MAX_SUBMISSIONS_PER_IP = 5;
+const RATE_LIMIT_TTL_SECONDS = 600; // 10 minutes (600 seconds)
 
 // In-memory duplicate payload cache (IP + email + trimmed message)
-const payloadCache = new Map(); // hash -> timestamp
+const payloadCache = new Map();
 const PAYLOAD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // In-memory Abstract API validation cache
@@ -37,7 +39,7 @@ const EMAIL_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 let quotaExhaustedUntil = 0;
 const CIRCUIT_BREAKER_COOL_DOWN_MS = 15 * 60 * 1000; // 15 minutes
 
-function fetchWithTimeout(url, options, ms = 7000) {
+function fetchWithTimeout(url, options, ms = 5000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   return fetch(url, { ...options, signal: controller.signal })
@@ -53,17 +55,53 @@ function getBool(data, key1, key2) {
   return null;
 }
 
-function isIpRateLimited(ip) {
-  if (!ip) return false;
-  const now = Date.now();
-  const timestamps = (ipSubmissionMap.get(ip) || []).filter(t => now - t < SUBMISSION_WINDOW_MS);
-  if (timestamps.length >= MAX_SUBMISSIONS_PER_IP) {
-    ipSubmissionMap.set(ip, timestamps);
-    return true;
+/**
+ * Distributed Upstash Redis Rate Limiter
+ * Uses Upstash REST pipeline: INCR ratelimit:<ip> & EXPIRE ratelimit:<ip> 600
+ * Fails open gracefully if Redis is unavailable or unconfigured.
+ */
+async function checkDistributedRateLimit(ip) {
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!redisUrl || !redisToken) {
+    console.warn('[api/contact] Upstash Redis env vars missing. Failing open for IP rate limiter.');
+    return { limited: false };
   }
-  timestamps.push(now);
-  ipSubmissionMap.set(ip, timestamps);
-  return false;
+
+  try {
+    const pipelineUrl = `${redisUrl.replace(/\/$/, '')}/pipeline`;
+    const res = await fetchWithTimeout(pipelineUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['INCR', `ratelimit:${ip}`],
+        ['EXPIRE', `ratelimit:${ip}`, RATE_LIMIT_TTL_SECONDS],
+      ]),
+    }, 4000);
+
+    if (!res.ok) {
+      console.warn(`[api/contact] Upstash Redis HTTP ${res.status}. Failing open.`);
+      return { limited: false };
+    }
+
+    const data = await res.json();
+    const count = (Array.isArray(data) && data[0] && typeof data[0].result === 'number')
+      ? data[0].result
+      : 1;
+
+    if (count > MAX_SUBMISSIONS_PER_IP) {
+      return { limited: true, count };
+    }
+
+    return { limited: false, count };
+  } catch (err) {
+    console.warn('[api/contact] Distributed rate limiter error:', err.message);
+    return { limited: false };
+  }
 }
 
 function isDuplicatePayload(ip, email, message) {
@@ -95,22 +133,21 @@ module.exports = async function handler(req, res) {
   // ── Layer 1: Honeypot Check (Invisible field trap for bots) ──────────────
   if (websiteHp !== '') {
     console.warn('[api/contact] Honeypot field populated. Silently dropping bot submission.');
-    // Pretend success so bots do not retry
     return res.status(200).json({ success: true, message: 'Thank you—your message has been sent.' });
   }
 
-  // ── Layer 2: Server-Side IP Rate Limiting (3 submissions / 10 mins) ──────
-  // On Vercel, x-real-ip is injected by Vercel's edge proxy and cannot be spoofed by the client.
+  // ── Layer 2: Distributed Upstash Redis IP Rate Limiting (5 / 10 mins) ───
   const rawIp = req.headers['x-real-ip'] ||
     (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].toString().split(',')[0] : '') ||
     req.socket?.remoteAddress ||
     '127.0.0.1';
   const clientIp = rawIp.toString().trim();
 
-  if (isIpRateLimited(clientIp)) {
-    console.warn(`[api/contact] Rate limit exceeded for IP: ${clientIp}`);
+  const rateCheck = await checkDistributedRateLimit(clientIp);
+  if (rateCheck.limited) {
+    console.warn(`[api/contact] Distributed rate limit exceeded for IP: ${clientIp}`);
     return res.status(429).json({
-      error: 'Too many contact submissions from this IP. Please wait 10 minutes before sending another message.',
+      error: 'Too many contact submissions from this IP address. Please wait 10 minutes before sending another message.',
     });
   }
 
