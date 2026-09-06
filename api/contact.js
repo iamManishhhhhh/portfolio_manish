@@ -76,29 +76,23 @@ function getBool(data, key1, key2) {
  * Verifies if the domain has active mail-exchange infrastructure.
  */
 async function verifyDomainMailCapability(domain) {
-  if (!domain) return false;
+  if (!domain || !domain.includes('.')) return false;
 
-  // 1. Check MX records first (standard mail servers)
+  // 1. Check MX records first (standard RFC 5321 mail exchange)
   try {
     const mxRecords = await dns.resolveMx(domain);
     if (Array.isArray(mxRecords) && mxRecords.length > 0) {
-      return true;
+      const hasValidExchange = mxRecords.some(r => r && typeof r.exchange === 'string' && r.exchange.trim().length > 0);
+      if (hasValidExchange) return true;
     }
   } catch (_err) {}
 
-  // 2. Fall back to A record (RFC 5321 section 5.1 allows direct A record delivery)
+  // 2. Fall back to A record check (RFC 5321 section 5.1 direct delivery)
   try {
     const aRecords = await dns.resolve4(domain);
     if (Array.isArray(aRecords) && aRecords.length > 0) {
-      return true;
-    }
-  } catch (_err) {}
-
-  // 3. Fall back to AAAA record
-  try {
-    const aaaaRecords = await dns.resolve6(domain);
-    if (Array.isArray(aaaaRecords) && aaaaRecords.length > 0) {
-      return true;
+      const validIp = aRecords.some(ip => ip && ip !== '0.0.0.0' && !ip.startsWith('127.') && !ip.startsWith('192.168.'));
+      if (validIp) return true;
     }
   } catch (_err) {}
 
