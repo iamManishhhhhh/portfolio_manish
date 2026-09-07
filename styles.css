@@ -309,6 +309,77 @@ img {
     position: relative;
     padding-top: 120px;
     padding-bottom: 80px;
+    overflow: hidden;
+}
+
+/* Subtle Hero Ambient Aurora Glow */
+.hero-aurora-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    max-width: 900px;
+    height: 500px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden;
+    opacity: 0.65;
+}
+
+.hero-aurora {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    will-change: transform, opacity;
+}
+
+.aurora-1 {
+    width: 450px;
+    height: 300px;
+    top: 20%;
+    left: 20%;
+    background: radial-gradient(circle, rgba(0, 140, 255, 0.18) 0%, rgba(0, 183, 255, 0.08) 50%, transparent 80%);
+    animation: auroraDrift1 14s ease-in-out infinite alternate;
+}
+
+.aurora-2 {
+    width: 400px;
+    height: 280px;
+    bottom: 15%;
+    right: 20%;
+    background: radial-gradient(circle, rgba(0, 183, 255, 0.15) 0%, rgba(124, 58, 237, 0.08) 50%, transparent 80%);
+    animation: auroraDrift2 18s ease-in-out infinite alternate;
+}
+
+@keyframes auroraDrift1 {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.5;
+    }
+    50% {
+        transform: translate(40px, -25px) scale(1.1);
+        opacity: 0.75;
+    }
+    100% {
+        transform: translate(-30px, 20px) scale(0.95);
+        opacity: 0.6;
+    }
+}
+
+@keyframes auroraDrift2 {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.6;
+    }
+    50% {
+        transform: translate(-45px, 30px) scale(1.15);
+        opacity: 0.4;
+    }
+    100% {
+        transform: translate(35px, -20px) scale(1);
+        opacity: 0.7;
+    }
 }
 
 .hero-content {
@@ -332,6 +403,18 @@ img {
     font-weight: 500;
     margin-bottom: 28px;
     backdrop-filter: blur(10px);
+    animation: badgePulseGlow 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes badgePulseGlow {
+    0% {
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    100% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+        border-color: rgba(16, 185, 129, 0.5);
+    }
 }
 
 .pulse-dot {
@@ -368,17 +451,39 @@ img {
     margin-bottom: 20px;
 }
 
+/* Dynamic Light/Shimmer across Manish Kumar heading */
 .hero-name {
     font-size: clamp(48px, 7vw, 84px);
     font-weight: 800;
     letter-spacing: -0.03em;
-    background: linear-gradient(135deg, #ffffff 45%, #008cff 100%);
+    background: linear-gradient(
+        110deg,
+        #ffffff 0%,
+        #ffffff 35%,
+        #70c4ff 50%,
+        #ffffff 65%,
+        #008cff 100%
+    );
+    background-size: 200% 100%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     display: inline-block;
+    animation: textShimmerSweep 6s ease-in-out infinite;
     transition: filter 0.15s ease, text-shadow 0.15s ease;
-    will-change: filter;
+    will-change: background-position, filter;
+}
+
+@keyframes textShimmerSweep {
+    0% {
+        background-position: 100% 0%;
+    }
+    50% {
+        background-position: 0% 0%;
+    }
+    100% {
+        background-position: -100% 0%;
+    }
 }
 
 .hero-subtitle {
@@ -388,6 +493,7 @@ img {
     font-weight: 400;
 }
 
+/* Breathing pulse effect on AI & Data Science glow only */
 .hero-accent-text {
     font-weight: 700;
     background: linear-gradient(135deg, #008cff 0%, #00b7ff 40%, #7c3aed 70%, #008cff 100%);
@@ -395,9 +501,18 @@ img {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: heroGradientShift 5s linear infinite;
+    animation: heroGradientShift 5s linear infinite, accentBreathingGlow 4s ease-in-out infinite alternate;
     transition: filter 0.15s ease, text-shadow 0.15s ease;
     cursor: default;
+}
+
+@keyframes accentBreathingGlow {
+    0% {
+        filter: drop-shadow(0 0 6px rgba(0, 140, 255, 0.25));
+    }
+    100% {
+        filter: drop-shadow(0 0 16px rgba(0, 183, 255, 0.55));
+    }
 }
 
 .cursor-reactive {
@@ -407,8 +522,7 @@ img {
 }
 
 .hero-accent-text:hover {
-    filter: brightness(1.25);
-    drop-shadow: 0 0 12px rgba(0, 140, 255, 0.4);
+    filter: brightness(1.25) drop-shadow(0 0 18px rgba(0, 140, 255, 0.65));
 }
 
 @keyframes heroGradientShift {
@@ -421,12 +535,24 @@ img {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .hero-aurora,
+    .hero-name,
+    .hero-accent-text,
+    .hero-badge {
+        animation: none !important;
+    }
+    .hero-name {
+        background: linear-gradient(135deg, #ffffff 45%, #008cff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
     .hero-accent-text {
-        animation: none;
         background: #008cff;
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        filter: none;
     }
 }
 
