@@ -427,69 +427,6 @@ window.addEventListener('scroll', () => {
 });
 
 // ===================================
-// Cursor Follow Effect (Optional)
-// ===================================
-function createCursorEffect() {
-    const cursor = document.createElement('div');
-    cursor.style.cssText = `
-        position: fixed;
-        width: 20px;
-        height: 20px;
-        border: 2px solid var(--accent-primary);
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 9999;
-        transition: transform 0.15s ease-out, opacity 0.15s ease-out;
-        opacity: 0;
-    `;
-    document.body.appendChild(cursor);
-    
-    let mouseX = 0;
-    let mouseY = 0;
-    let cursorX = 0;
-    let cursorY = 0;
-    
-    document.addEventListener('mousemove', (e) => {
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-        cursor.style.opacity = '1';
-    });
-    
-    document.addEventListener('mouseleave', () => {
-        cursor.style.opacity = '0';
-    });
-    
-    function animateCursor() {
-        const diffX = mouseX - cursorX;
-        const diffY = mouseY - cursorY;
-        
-        cursorX += diffX * 0.1;
-        cursorY += diffY * 0.1;
-        
-        cursor.style.left = cursorX + 'px';
-        cursor.style.top = cursorY + 'px';
-        
-        requestAnimationFrame(animateCursor);
-    }
-    
-    animateCursor();
-    
-    // Scale cursor on hover over interactive elements
-    const interactiveElements = document.querySelectorAll('a, button, .btn, .project-card, .skill-badge');
-    interactiveElements.forEach(el => {
-        el.addEventListener('mouseenter', () => {
-            cursor.style.transform = 'scale(2)';
-        });
-        el.addEventListener('mouseleave', () => {
-            cursor.style.transform = 'scale(1)';
-        });
-    });
-}
-
-// Uncomment to enable custom cursor (works best on desktop)
-// createCursorEffect();
-
-// ===================================
 // Lazy Loading Images (for future use)
 // ===================================
 if ('IntersectionObserver' in window) {
@@ -520,3 +457,415 @@ console.log('%c2. Add your projects in the Projects section', 'color: #707070; f
 console.log('%c3. Customize colors in styles.css (CSS Variables)', 'color: #707070; font-size: 14px;');
 console.log('%c4. Add your social media links', 'color: #707070; font-size: 14px;');
 console.log('%cHappy coding! 🚀', 'color: #d4a574; font-size: 16px; font-weight: bold;');
+
+// ===================================
+// Subtle Haptic Feedback (Vibration API)
+// ===================================
+(function initHapticFeedback() {
+    // Helper to safely trigger subtle haptic vibration
+    function triggerHaptic(duration = 10) {
+        if (!('vibrate' in navigator) || typeof navigator.vibrate !== 'function') return;
+        
+        // Respect reduced motion / accessibility preferences
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) return;
+        
+        try {
+            navigator.vibrate(duration);
+        } catch (e) {
+            // Ignore potential permission/device restrictions
+        }
+    }
+
+    // Attach subtle haptic feedback using event delegation
+    document.addEventListener('click', (e) => {
+        const target = e.target.closest('a, button, .btn, .social-link, .nav-link, .nav-logo');
+        if (!target) return;
+
+        // CTA buttons (Contact Me, View Resume, Send Message) get slightly stronger feedback (12ms)
+        if (target.classList.contains('btn') || target.tagName === 'BUTTON' || target.getAttribute('type') === 'submit') {
+            triggerHaptic(12);
+        } 
+        // Navigation links, social links & logos get ultra-short subtle pulse (8ms)
+        else if (target.classList.contains('nav-link') || target.classList.contains('social-link') || target.classList.contains('nav-logo')) {
+            triggerHaptic(8);
+        }
+        // General links
+        else if (target.tagName === 'A') {
+            triggerHaptic(8);
+        }
+    }, { passive: true });
+})();
+
+// ===================================
+// Web Audio API Synthesized UI Click Sound
+// ===================================
+(function initClickSound() {
+    let audioCtx = null;
+
+    function playSynthesizedClick() {
+        try {
+            // Lazy-initialize shared AudioContext on user interaction
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+                audioCtx = new AudioContextClass();
+            }
+
+            // Ensure AudioContext is active (resumed if suspended by browser autoplay rules)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const now = audioCtx.currentTime;
+
+            // Minimal UI Pop: Warm sine oscillator with rapid pitch drop (420Hz -> 120Hz) + lowpass filter
+            const duration = 0.065; // 65ms total duration
+            const osc = audioCtx.createOscillator();
+            const filter = audioCtx.createBiquadFilter();
+            const gainNode = audioCtx.createGain();
+
+            // Smooth sine wave with pitch drop for a natural rounded pop
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(420, now);
+            osc.frequency.exponentialRampToValueAtTime(120, now + 0.055);
+
+            // Lowpass filter at 1400Hz to remove metallic transients
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1400, now);
+
+            // Volume envelope (~12% peak volume, fast exponential decay)
+            gainNode.gain.setValueAtTime(0.12, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.0005, now + duration);
+
+            osc.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.start(now);
+            osc.stop(now + duration);
+        } catch (e) {
+            // Fail silently without console errors on unsupported devices
+        }
+    }
+
+    // Attach click listener to real interactive elements
+    document.addEventListener('click', (e) => {
+        const target = e.target.closest('a, button, .btn, .social-link, .nav-link, .nav-logo, .project-card, .filter-btn');
+        if (target) {
+            playSynthesizedClick();
+        }
+    }, { passive: true });
+})();
+
+// ===================================
+// Premium 3D Spotlight + Tilt Interactions
+// ===================================
+(function init3DInteractions() {
+    // Disable 3D mouse tracking on touch devices or reduced motion
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (isTouchDevice || prefersReducedMotion) return;
+
+    // Helper to calculate mouse percentage coordinates for dynamic CSS spotlight
+    function setMouseSpotlight(el, e) {
+        const rect = el.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        el.style.setProperty('--mouse-x', `${x.toFixed(1)}%`);
+        el.style.setProperty('--mouse-y', `${y.toFixed(1)}%`);
+    }
+
+    // 1. Project Cards — Full 3D Spotlight + Tilt (5–6° max, subtle internal parallax)
+    const projectCards = document.querySelectorAll('.project-card');
+    projectCards.forEach(card => {
+        let reqId = null;
+        const cardImg = card.querySelector('.project-img');
+
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const rotateX = (((y - centerY) / centerY) * -5.5).toFixed(2);
+            const rotateY = (((x - centerX) / centerX) * 5.5).toFixed(2);
+
+            setMouseSpotlight(card, e);
+
+            if (reqId) cancelAnimationFrame(reqId);
+            reqId = requestAnimationFrame(() => {
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-3px)`;
+                if (cardImg) {
+                    cardImg.style.transform = `scale(1.05) translate3d(${(rotateY * -0.5).toFixed(1)}px, ${(rotateX * 0.5).toFixed(1)}px, 0)`;
+                }
+            });
+        });
+
+        card.addEventListener('mouseleave', () => {
+            if (reqId) cancelAnimationFrame(reqId);
+            card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+            if (cardImg) {
+                cardImg.style.transform = 'scale(1) translate3d(0, 0, 0)';
+            }
+        });
+    });
+
+    // 2. Profile Card — Lighter 3D Spotlight + Tilt (3–4° max)
+    const profileCard = document.querySelector('.contact-portrait');
+    if (profileCard) {
+        let reqId = null;
+        const portraitImg = profileCard.querySelector('.contact-portrait-image');
+
+        profileCard.addEventListener('mousemove', (e) => {
+            const rect = profileCard.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const rotateX = (((y - centerY) / centerY) * -3.5).toFixed(2);
+            const rotateY = (((x - centerX) / centerX) * 3.5).toFixed(2);
+
+            setMouseSpotlight(profileCard, e);
+
+            if (reqId) cancelAnimationFrame(reqId);
+            reqId = requestAnimationFrame(() => {
+                profileCard.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
+                if (portraitImg) {
+                    portraitImg.style.transform = `translate3d(${(rotateY * -0.4).toFixed(1)}px, ${(rotateX * 0.4).toFixed(1)}px, 0)`;
+                }
+            });
+        });
+
+        profileCard.addEventListener('mouseleave', () => {
+            if (reqId) cancelAnimationFrame(reqId);
+            profileCard.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+            if (portraitImg) {
+                portraitImg.style.transform = 'translate3d(0, 0, 0)';
+            }
+        });
+    }
+
+    // 3. Skill Cards — Spotlight Only (no heavy tilt, 1–2px lift)
+    const skillCards = document.querySelectorAll('.skill-category');
+    skillCards.forEach(card => {
+        let reqId = null;
+
+        card.addEventListener('mousemove', (e) => {
+            setMouseSpotlight(card, e);
+        });
+
+        card.addEventListener('mouseleave', () => {
+            if (reqId) cancelAnimationFrame(reqId);
+            card.style.transform = 'translateY(0px)';
+        });
+    });
+
+    // 4. Social Icons — Micro 3D Tilt (2–3° max)
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+        let reqId = null;
+
+        link.addEventListener('mousemove', (e) => {
+            const rect = link.getBoundingClientRect();
+            const x = e.clientX - rect.left - rect.width / 2;
+            const y = e.clientY - rect.top - rect.height / 2;
+
+            const rotateX = ((y / (rect.height / 2)) * -2.5).toFixed(2);
+            const rotateY = ((x / (rect.width / 2)) * 2.5).toFixed(2);
+
+            if (reqId) cancelAnimationFrame(reqId);
+            reqId = requestAnimationFrame(() => {
+                link.style.transform = `perspective(400px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
+            });
+        });
+
+        link.addEventListener('mouseleave', () => {
+            if (reqId) cancelAnimationFrame(reqId);
+            link.style.transform = 'perspective(400px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+        });
+    });
+
+    // 5. CTA Buttons — Light Magnetic Cursor Interaction (4–6px max)
+    const ctaButtons = document.querySelectorAll('.hero-cta .btn, .btn-primary, .btn-secondary');
+    ctaButtons.forEach(btn => {
+        let reqId = null;
+
+        btn.addEventListener('mousemove', (e) => {
+            const rect = btn.getBoundingClientRect();
+            const x = e.clientX - rect.left - rect.width / 2;
+            const y = e.clientY - rect.top - rect.height / 2;
+
+            const moveX = (x * 0.15).toFixed(2);
+            const moveY = (y * 0.15).toFixed(2);
+
+            if (reqId) cancelAnimationFrame(reqId);
+            reqId = requestAnimationFrame(() => {
+                btn.style.transform = `translate3d(${moveX}px, ${moveY}px, 0)`;
+            });
+        });
+
+        btn.addEventListener('mouseleave', () => {
+            if (reqId) cancelAnimationFrame(reqId);
+            btn.style.transform = 'translate3d(0px, 0px, 0px)';
+        });
+    });
+
+    // 6. Hero Section — Mouse-Following Parallax (5–10px max on decorative elements)
+    const heroSection = document.querySelector('.hero');
+    const heroCircles = document.querySelectorAll('.hero-decoration .decoration-circle');
+
+    if (heroSection && heroCircles.length > 0) {
+        let reqId = null;
+
+        heroSection.addEventListener('mousemove', (e) => {
+            const rect = heroSection.getBoundingClientRect();
+            const relX = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
+            const relY = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
+
+            if (reqId) cancelAnimationFrame(reqId);
+            reqId = requestAnimationFrame(() => {
+                heroCircles.forEach((circle, idx) => {
+                    const depth = (idx + 1) * 3; // 3px, 6px, 9px max
+                    const moveX = (relX * depth).toFixed(2);
+                    const moveY = (relY * depth).toFixed(2);
+                    circle.style.transform = `translate3d(${moveX}px, ${moveY}px, 0)`;
+                });
+            });
+        });
+
+        heroSection.addEventListener('mouseleave', () => {
+            if (reqId) cancelAnimationFrame(reqId);
+            heroCircles.forEach(circle => {
+                circle.style.transform = 'translate3d(0px, 0px, 0px)';
+            });
+        });
+    }
+})();
+
+// ===================================
+// Subtle Hero Proximity Color Interaction
+// ===================================
+(function initHeroProximity() {
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (isTouchDevice || prefersReducedMotion) return;
+
+    const hero = document.querySelector('.hero');
+    if (!hero) return;
+
+    // Target elements with .cursor-reactive ONLY inside hero
+    const targets = Array.from(hero.querySelectorAll('.cursor-reactive'));
+    if (targets.length === 0) return;
+
+    const maxRadius = 250; // 250px proximity radius requirement
+    let mouseX = -1000;
+    let mouseY = -1000;
+    let isInsideHero = false;
+
+    // Track proximity state per element for smooth lerping
+    const items = targets.map(el => ({
+        el,
+        currentProximity: 0,
+        targetProximity: 0
+    }));
+
+    window.addEventListener('mousemove', (e) => {
+        const heroRect = hero.getBoundingClientRect();
+        if (
+            e.clientX >= heroRect.left &&
+            e.clientX <= heroRect.right &&
+            e.clientY >= heroRect.top &&
+            e.clientY <= heroRect.bottom
+        ) {
+            isInsideHero = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        } else {
+            isInsideHero = false;
+        }
+    }, { passive: true });
+
+    document.addEventListener('mouseleave', () => {
+        isInsideHero = false;
+    });
+
+    // Helper: interpolate RGB (for standard text / non-clipped text if any)
+    function interpolateColor(p) {
+        // Normal text color baseline: default white / light gray (#ffffff / rgb(255,255,255))
+        // Target: Electric Blue (#008CFF -> rgb(0, 140, 255)) to Cyan (#00B7FF -> rgb(0, 183, 255))
+        const r = Math.round(255 * (1 - p) + 0 * p);
+        const g = Math.round(255 * (1 - p) + (140 + 43 * p) * p);
+        const b = 255;
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function animate() {
+        items.forEach(item => {
+            const el = item.el;
+            if (isInsideHero) {
+                const rect = el.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const dist = Math.hypot(mouseX - centerX, mouseY - centerY);
+
+                if (dist < maxRadius) {
+                    item.targetProximity = Math.min(1, Math.max(0, 1 - dist / maxRadius));
+                } else {
+                    item.targetProximity = 0;
+                }
+            } else {
+                item.targetProximity = 0;
+            }
+
+            // Lerp smoothing: current += (target - current) * 0.12
+            item.currentProximity += (item.targetProximity - item.currentProximity) * 0.12;
+            const p = item.currentProximity;
+
+            // Apply visual changes based on proximity intensity p (0 to 1)
+            if (p > 0.005) {
+                // Glow intensity for distance < 100px (proximity > 0.6)
+                const glowAlpha = p > 0.6 ? (p - 0.6) * 0.75 : 0;
+                const glowBlur = Math.round(p * 14);
+
+                if (el.classList.contains('hero-name')) {
+                    // Hero name has background-clip: text.
+                    // We apply SVG drop-shadow filter + color saturation shift
+                    el.style.filter = `drop-shadow(0 0 ${glowBlur}px rgba(0, 183, 255, ${0.3 + glowAlpha})) brightness(${1 + p * 0.35})`;
+                } else if (el.classList.contains('hero-accent-text')) {
+                    // AI & Data Science (gradient background clipped)
+                    el.style.filter = `drop-shadow(0 0 ${glowBlur}px rgba(0, 183, 255, ${0.4 + glowAlpha})) brightness(${1 + p * 0.4})`;
+                } else {
+                    // Standard text elements (e.g. CTA text)
+                    el.style.color = interpolateColor(p);
+                    if (p > 0.6) {
+                        el.style.textShadow = `0 0 12px rgba(0, 168, 255, ${glowAlpha})`;
+                    } else {
+                        el.style.textShadow = 'none';
+                    }
+                }
+            } else {
+                // Reset when far away
+                if (el.classList.contains('hero-name') || el.classList.contains('hero-accent-text')) {
+                    el.style.filter = 'none';
+                } else {
+                    el.style.color = '';
+                    el.style.textShadow = '';
+                }
+            }
+        });
+
+        requestAnimationFrame(animate);
+    }
+
+    // Start continuous rAF loop
+    requestAnimationFrame(animate);
+})();
+
+

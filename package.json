@@ -1,0 +1,12 @@
+{
+  "name": "portfolio-manish",
+  "version": "1.0.0",
+  "description": "Manish Kumar - Personal Portfolio Website",
+  "scripts": {
+    "dev": "npx serve . -p 8085 --no-clipboard",
+    "start": "npx serve . -p 8085 --no-clipboard"
+  },
+  "keywords": ["portfolio", "manish-kumar", "ai", "data-science"],
+  "author": "Manish Kumar",
+  "license": "MIT"
+}
