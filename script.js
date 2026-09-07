@@ -231,7 +231,7 @@ if (contactForm && emailInput) {
         const messageVal = document.getElementById('message') ? document.getElementById('message').value.trim() : '';
 
         // Layer 2: Send complete payload to /api/contact serverless endpoint
-        // (Handles IP rate limiting, honeypot, Abstract API check, and server-side Formspree proxy)
+        // (Handles IP rate limiting, honeypot, Abstract API check, and server-side Resend API proxy)
         try {
             const response = await fetch('/api/contact', {
                 method: 'POST',

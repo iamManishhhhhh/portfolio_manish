@@ -9,9 +9,12 @@
  * 5. Generalized disposable/temporary-email domain detection
  * 6. Server-side Node.js DNS / MX record capability verification
  * 7. Abstract API email reputation check (disposable, MX, deliverability)
- * 8. Server-side proxy forwarding to Formspree
+ * 8. Server-side email forwarding via Resend API
  *
  * Environment Variables (Server-side ONLY):
+ * - RESEND_API_KEY
+ * - RESEND_FROM_EMAIL
+ * - RESEND_TO_EMAIL
  * - ABSTRACT_API_KEY
  * - UPSTASH_REDIS_REST_URL
  * - UPSTASH_REDIS_REST_TOKEN
@@ -21,7 +24,7 @@
 
 const dns = require('dns').promises;
 
-const FORMSPREE_ENDPOINT = 'https://formspree.io/f/mwvbnaze';
+const RESEND_API_URL = 'https://api.resend.com/emails';
 const ABSTRACT_API_URL = 'https://emailvalidation.abstractapi.com/v1/';
 
 const EMAIL_FORMAT_REGEX =
@@ -295,31 +298,71 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: validationResult.reason || 'Invalid email address.' });
   }
 
-  // ── Layer 7: Forward Payload to Formspree (Server-Side Proxy) ───────────
+  // ── Layer 7: Forward Payload to Resend API (Server-Side) ─────────────────
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Portfolio Contact <onboarding@resend.dev>';
+  const resendToEmail = process.env.RESEND_TO_EMAIL || 'manishkumar.workemail@gmail.com';
+
+  if (!resendApiKey) {
+    console.error('[api/contact] RESEND_API_KEY environment variable is missing.');
+    return res.status(500).json({ error: 'Server email service is not properly configured.' });
+  }
+
   try {
-    const formspreeRes = await fetchWithTimeout(FORMSPREE_ENDPOINT, {
+    const emailSubject = subject ? `[Portfolio Contact] ${subject}` : `New Portfolio Contact Message from ${name}`;
+
+    const safeName = name.replace(/[\r\n]+/g, ' ');
+    const safeEmail = normalizedEmail.replace(/[\r\n]+/g, ' ');
+    const safeSubject = (subject || 'N/A').replace(/[\r\n]+/g, ' ');
+
+    const htmlBody = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; color: #1e293b; line-height: 1.6; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #2563eb; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0;">New Contact Form Submission</h2>
+        <p style="margin: 8px 0;"><strong>Name:</strong> ${escapeHtml(safeName)}</p>
+        <p style="margin: 8px 0;"><strong>Email:</strong> <a href="mailto:${escapeHtml(safeEmail)}" style="color: #2563eb;">${escapeHtml(safeEmail)}</a></p>
+        <p style="margin: 8px 0;"><strong>Subject:</strong> ${escapeHtml(safeSubject)}</p>
+        <p style="margin: 16px 0 8px 0;"><strong>Message:</strong></p>
+        <div style="background-color: #f8fafc; padding: 16px; border-radius: 6px; border: 1px solid #cbd5e1; white-space: pre-wrap; font-family: inherit; font-size: 14px;">${escapeHtml(message)}</div>
+        <hr style="margin-top: 24px; border: 0; border-top: 1px solid #e2e8f0;" />
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Sent via Portfolio Contact Form on ${new Date().toUTCString()}</p>
+      </div>
+    `;
+
+    const resendRes = await fetchWithTimeout(RESEND_API_URL, {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${resendApiKey.trim()}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
       },
       body: JSON.stringify({
-        name,
-        email: normalizedEmail,
-        subject: subject || 'Portfolio Contact Form Submission',
-        message,
+        from: resendFromEmail,
+        to: [resendToEmail],
+        reply_to: normalizedEmail,
+        subject: emailSubject,
+        html: htmlBody,
+        text: `Name: ${name}\nEmail: ${normalizedEmail}\nSubject: ${subject || 'N/A'}\n\nMessage:\n${message}`,
       }),
     }, 10000);
 
-    if (!formspreeRes.ok) {
-      console.error('[api/contact] Formspree responded with HTTP', formspreeRes.status);
-      return res.status(500).json({ error: 'Failed to send message via form provider. Please try again later.' });
+    if (!resendRes.ok) {
+      const errText = await resendRes.text().catch(() => '');
+      console.error(`[api/contact] Resend API responded with HTTP ${resendRes.status}:`, errText);
+      return res.status(500).json({ error: 'Failed to send message via email provider. Please try again later.' });
     }
 
     return res.status(200).json({ success: true, message: 'Thank you—your message has been sent.' });
 
   } catch (err) {
-    console.error('[api/contact] Error forwarding to Formspree:', err.message);
+    console.error('[api/contact] Error forwarding to Resend:', err.message);
     return res.status(500).json({ error: 'Server network error while submitting form. Please try again.' });
   }
 };
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
