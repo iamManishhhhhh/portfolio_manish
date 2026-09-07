@@ -300,8 +300,17 @@ module.exports = async function handler(req, res) {
 
   // ── Layer 7: Forward Payload to Resend API (Server-Side) ─────────────────
   const resendApiKey = process.env.RESEND_API_KEY;
-  const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Portfolio Contact <onboarding@resend.dev>';
-  const resendToEmail = process.env.RESEND_TO_EMAIL || 'manishkumar.workemail@gmail.com';
+  const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const resendToEmail = process.env.RESEND_TO_EMAIL || resendFromEmail;
+
+  if (!resendFromEmail) {
+    console.error('[api/contact] RESEND_FROM_EMAIL environment variable is missing.');
+    return res.status(500).json({ error: 'Server email "from" address not configured.' });
+  }
+  if (!resendToEmail) {
+    console.error('[api/contact] RESEND_TO_EMAIL environment variable is missing.');
+    return res.status(500).json({ error: 'Server email recipient not configured.' });
+  }
 
   if (!resendApiKey) {
     console.error('[api/contact] RESEND_API_KEY environment variable is missing.');
@@ -337,7 +346,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         from: resendFromEmail,
         to: [resendToEmail],
-        reply_to: normalizedEmail,
+        // reply_to omitted in testing mode
         subject: emailSubject,
         html: htmlBody,
         text: `Name: ${name}\nEmail: ${normalizedEmail}\nSubject: ${subject || 'N/A'}\n\nMessage:\n${message}`,
